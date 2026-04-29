@@ -64,6 +64,6 @@
 4. Начните диалог с Qesty AI
 
 ```bash
-git clone https://github.com/ваш-username/qesty-ai.git
+git clone https://github.com/atanelo384-web/Qwest-AI
 cd qesty-ai
 # откройте index.html в браузере
