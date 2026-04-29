@@ -78,13 +78,20 @@
 
         // === РАБОТА С БАЗОЙ ===
         async function initUserData() {
-            const userRef = doc(db, "users", currentUserId);
-            const userSnap = await getDoc(userRef);
-            if (!userSnap.exists()) {
-                await setDoc(userRef, { chats: [] });
-            }
-            listenHistory();
-        }
+    const userRef = doc(db, "users", currentUserId);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+        await setDoc(userRef, { 
+            chats: [],
+            email: currentUserId,
+            createdAt: new Date().toISOString()
+        });
+        console.log("✅ Новый пользователь создан:", currentUserId);
+    } else {
+        console.log("✅ Пользователь найден:", currentUserId);
+    }
+    listenHistory();
+}
 
         function listenHistory() {
             const userRef = doc(db, "users", currentUserId);
