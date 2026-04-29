@@ -1,38 +1,69 @@
 <div align="center">
   
-  <img src="https://img.icons8.com/fluency/96/api-settings.png" width="80">
+  <img src="https://img.icons8.com/fluency/96/artificial-intelligence.png" width="100">
   
-  <h1>🔑 OpenRouter API Key</h1>
+  <h1>✨ Qesty AI</h1>
   
   <p>
-    <strong>Qesty AI · API Configuration</strong>
+    <strong>минималистичный чат · нейросеть · firebase · google auth</strong>
   </p>
   
-  <pre style="background: #0d1117; padding: 1rem; border-radius: 12px; color: #e6edf3;">
-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
-  </pre>
+  <p>
+    <img src="https://img.shields.io/badge/Firebase-Auth+DB-FFCA28?style=flat-square">
+    <img src="https://img.shields.io/badge/Google-Login-4285F4?style=flat-square">
+    <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
+  </p>
   
   <p>
-    <img src="https://img.shields.io/badge/Model-Llama_3.3_70B-8A2BE2?style=flat-square">
-    <img src="https://img.shields.io/badge/Status-Active-22c55e?style=flat-square">
-    <img src="https://img.shields.io/badge/Type-Free-3b82f6?style=flat-square">
+    <a href="https://qesty-ai.github.io">
+      <img src="https://img.shields.io/badge/🌐_DEMO-открыть_чат-4f46e5?style=for-the-badge">
+    </a>
   </p>
 
 </div>
 
 ---
 
-## ✨ About this API Key
+## 📖 О проекте
 
-| Property | Value |
-|----------|-------|
-| **Service** | OpenRouter |
-| **Model** | `meta-llama/llama-3.3-70b-instruct:free` |
-| **Type** | 🆓 Free / Test |
-| **Rate Limit** | ~20 requests/min |
-| **Context** | 128K tokens |
+**Qesty AI** — это минималистичный веб-чат с искусственным интеллектом.
+
+- 🔐 Вход через **Google аккаунт** (Firebase Auth)
+- 💾 Сохранение **истории диалогов** (Firestore)
+- 🧠 Интеграция с **нейросетью**
+- 🎨 Чистый, адаптивный дизайн
+- ⚡ Динамическая подсветка полей ввода
 
 ---
 
-  })
-});
+## 🔗 Ссылка на чат
+
+> ### 🌐 [**Qesty AI — запустить чат**](https://ваш-username.github.io/ваш-репозиторий)
+
+*(Замените ссылку на вашу реальную GitHub Pages)*
+
+---
+
+## 🛠️ Технологии
+
+| Компонент | Технология |
+|-----------|------------|
+| Frontend | HTML5, CSS3, JavaScript |
+| Auth | Firebase Authentication (Google) |
+| Database | Cloud Firestore |
+| AI API | OpenRouter |
+| Хостинг | GitHub Pages |
+
+---
+
+## 🚀 Быстрый старт
+
+1. Клонируйте репозиторий
+2. Откройте `index.html`
+3. Войдите через Google
+4. Начните диалог с Qesty AI
+
+```bash
+git clone https://github.com/ваш-username/qesty-ai.git
+cd qesty-ai
+# откройте index.html в браузере
