@@ -34,21 +34,5 @@ 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
 
 ---
 
-## 📦 Quick Integration
-
-### JavaScript / TypeScript
-
-```javascript
-const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer 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"
-  },
-  body: JSON.stringify({
-    model: "meta-llama/llama-3.3-70b-instruct:free",
-    messages: [
-      { role: "user", content: "Hello, Qesty!" }
-    ]
   })
 });
