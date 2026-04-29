@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Qesty AI — минималистичный чат</title>
+    <title>Qesty AI — умный чат</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Marked.js для Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // Firebase Config
         const firebaseConfig = {
@@ -23,10 +25,10 @@
             measurementId: "G-68ZKJQ3D0H"
         };
 
-        // API ключ OpenRouter
+        // OpenRouter API Key
         const OPENROUTER_API_KEY = "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";
 
-        // Инициализация Firebase
+        // Инициализация
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const provider = new GoogleAuthProvider();
@@ -44,28 +46,64 @@
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
         const typingIndicator = document.getElementById('typingIndicator');
+        const themeToggle = document.getElementById('themeToggle');
+        const regenerateBtn = document.getElementById('regenerateBtn');
 
         let currentUserId = null;
         let currentChatId = null;
         let currentMessages = [];
+        let isDarkTheme = localStorage.getItem('theme') === 'dark';
+
+        // === ТЕМА ===
+        function applyTheme() {
+            if (isDarkTheme) {
+                document.body.classList.add('dark-theme');
+                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                document.body.classList.remove('dark-theme');
+                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        }
+        
+        themeToggle.onclick = () => {
+            isDarkTheme = !isDarkTheme;
+            localStorage.setItem('theme', isDarkTheme ? 'dark' : 'light');
+            applyTheme();
+        };
+        applyTheme();
 
         // === АВТОРИЗАЦИЯ ===
         window.handleGoogleLogin = async () => {
             try {
-                await signInWithPopup(auth, provider);
+                const result = await signInWithPopup(auth, provider);
+                await initUserData(result.user.uid);
             } catch (error) {
                 alert("Ошибка входа: " + error.message);
             }
         };
+
+        async function initUserData(uid) {
+            const userRef = doc(db, "users", uid);
+            const userSnap = await getDoc(userRef);
+            if (!userSnap.exists()) {
+                await setDoc(userRef, { 
+                    chats: [],
+                    email: auth.currentUser?.email,
+                    createdAt: new Date().toISOString()
+                });
+                console.log("✅ Создан новый пользователь");
+            }
+        }
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUserId = user.uid;
                 loginScreen.classList.add('hidden');
                 appContainer.classList.remove('hidden');
-                userAvatar.src = user.photoURL || 'https://ui-avatars.com/api/?background=random&name=' + user.displayName;
+                userAvatar.src = user.photoURL || `https://ui-avatars.com/api/?background=4f46e5&color=fff&name=${user.displayName?.[0] || 'U'}`;
                 userNameSpan.textContent = user.displayName || user.email;
-                await initUserData();
+                await initUserData(currentUserId);
+                listenHistory();
                 loadLastChat();
             } else {
                 loginScreen.classList.remove('hidden');
@@ -76,23 +114,7 @@
 
         logoutBtn.onclick = () => signOut(auth);
 
-        // === РАБОТА С БАЗОЙ ===
-        async function initUserData() {
-    const userRef = doc(db, "users", currentUserId);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) {
-        await setDoc(userRef, { 
-            chats: [],
-            email: currentUserId,
-            createdAt: new Date().toISOString()
-        });
-        console.log("✅ Новый пользователь создан:", currentUserId);
-    } else {
-        console.log("✅ Пользователь найден:", currentUserId);
-    }
-    listenHistory();
-}
-
+        // === ИСТОРИЯ ===
         function listenHistory() {
             const userRef = doc(db, "users", currentUserId);
             onSnapshot(userRef, (docSnap) => {
@@ -106,19 +128,45 @@
             if (!historyList) return;
             historyList.innerHTML = '';
             if (chats.length === 0) {
-                const empty = document.createElement('div');
-                empty.className = 'empty-history';
-                empty.innerText = 'Нет диалогов';
-                historyList.appendChild(empty);
+                historyList.innerHTML = '<div class="empty-history"><i class="far fa-comment-dots"></i><p>Нет диалогов</p></div>';
                 return;
             }
             chats.slice().reverse().forEach(chat => {
                 const chatDiv = document.createElement('div');
                 chatDiv.className = `history-item ${currentChatId === chat.id ? 'active' : ''}`;
-                chatDiv.innerHTML = `<i class="far fa-comment"></i><span>${escapeHtml(chat.title || 'Новый чат')}</span>`;
+                chatDiv.innerHTML = `
+                    <i class="far fa-comment"></i>
+                    <span>${escapeHtml(chat.title || 'Новый чат')}</span>
+                    <i class="fas fa-trash-alt delete-chat" data-id="${chat.id}"></i>
+                `;
+                chatDiv.querySelector('.delete-chat')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteChat(chat.id);
+                });
                 chatDiv.onclick = () => loadChat(chat.id);
                 historyList.appendChild(chatDiv);
             });
+        }
+
+        async function deleteChat(chatId) {
+            if (!confirm('Удалить этот диалог?')) return;
+            const userRef = doc(db, "users", currentUserId);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                const chats = userSnap.data().chats || [];
+                const updatedChats = chats.filter(c => c.id !== chatId);
+                await updateDoc(userRef, { chats: updatedChats });
+                if (currentChatId === chatId) {
+                    currentChatId = null;
+                    currentMessages = [];
+                    renderMessages();
+                    if (updatedChats.length > 0) {
+                        loadChat(updatedChats[updatedChats.length - 1].id);
+                    } else {
+                        await createNewChat();
+                    }
+                }
+            }
         }
 
         async function createNewChat() {
@@ -131,14 +179,15 @@
                 messages: []
             };
             const userRef = doc(db, "users", currentUserId);
-            await updateDoc(userRef, { chats: arrayUnion(newChat) });
+            const userSnap = await getDoc(userRef);
+            const chats = userSnap.exists() ? (userSnap.data().chats || []) : [];
+            await updateDoc(userRef, { chats: [...chats, newChat] });
             loadChat(newId);
         }
 
         async function loadChat(chatId) {
             currentChatId = chatId;
-            const userRef = doc(db, "users", currentUserId);
-            const userSnap = await getDoc(userRef);
+            const userSnap = await getDoc(doc(db, "users", currentUserId));
             if (userSnap.exists()) {
                 const chat = userSnap.data().chats?.find(c => c.id === chatId);
                 if (chat) {
@@ -153,8 +202,7 @@
         }
 
         async function loadLastChat() {
-            const userRef = doc(db, "users", currentUserId);
-            const userSnap = await getDoc(userRef);
+            const userSnap = await getDoc(doc(db, "users", currentUserId));
             if (userSnap.exists()) {
                 const chats = userSnap.data().chats || [];
                 if (chats.length > 0) {
@@ -167,29 +215,89 @@
 
         newChatBtn.onclick = () => createNewChat();
 
+        // === ОТРИСОВКА ===
         function renderMessages() {
             if (!chatArea) return;
             chatArea.innerHTML = '';
             if (!currentMessages.length) {
-                const placeholder = document.createElement('div');
-                placeholder.className = 'empty-chat';
-                placeholder.innerHTML = '<i class="fas fa-robot"></i><p>Напишите Qesty что-нибудь...</p>';
-                chatArea.appendChild(placeholder);
+                chatArea.innerHTML = '<div class="empty-chat"><i class="fas fa-robot"></i><p>Напишите Qesty что-нибудь...</p></div>';
                 return;
             }
-            currentMessages.forEach(msg => {
+            currentMessages.forEach((msg, idx) => {
                 const msgDiv = document.createElement('div');
                 msgDiv.className = `message ${msg.role === 'user' ? 'user' : 'ai'}`;
+                const formattedText = msg.role === 'ai' ? marked.parse(msg.text) : escapeHtml(msg.text);
                 msgDiv.innerHTML = `
                     <div class="message-bubble">
                         <strong>${msg.role === 'user' ? 'Вы' : 'Qesty AI'}</strong>
-                        <p>${escapeHtml(msg.text)}</p>
+                        <div class="message-content">${formattedText}</div>
+                        ${msg.role === 'ai' ? `<div class="message-actions"><i class="fas fa-copy copy-msg" data-idx="${idx}"></i></div>` : ''}
+                        ${msg.role === 'user' ? `<div class="message-actions"><i class="fas fa-edit edit-msg" data-idx="${idx}"></i></div>` : ''}
                     </div>
                 `;
+                
+                if (msg.role === 'ai') {
+                    msgDiv.querySelector('.copy-msg')?.addEventListener('click', () => {
+                        navigator.clipboard.writeText(msg.text);
+                        alert('Скопировано!');
+                    });
+                }
+                
+                if (msg.role === 'user') {
+                    msgDiv.querySelector('.edit-msg')?.addEventListener('click', async () => {
+                        const newText = prompt('Редактировать сообщение:', msg.text);
+                        if (newText && newText.trim()) {
+                            currentMessages[idx].text = newText.trim();
+                            await saveMessagesToFirestore();
+                            renderMessages();
+                            // Перегенерировать ответ
+                            await regenerateResponse(idx);
+                        }
+                    });
+                }
+                
                 chatArea.appendChild(msgDiv);
             });
             chatArea.scrollTop = chatArea.scrollHeight;
         }
+
+        async function regenerateResponse(userMsgIndex) {
+            if (userMsgIndex + 1 < currentMessages.length && currentMessages[userMsgIndex + 1].role === 'ai') {
+                currentMessages.splice(userMsgIndex + 1, 1);
+            }
+            await saveMessagesToFirestore();
+            renderMessages();
+            
+            // Отправить запрос заново
+            const lastUserMsg = currentMessages[userMsgIndex];
+            if (lastUserMsg && lastUserMsg.role === 'user') {
+                typingIndicator.classList.remove('hidden');
+                try {
+                    const aiReply = await callOpenRouter(currentMessages.slice(0, userMsgIndex + 1));
+                    const aiMessage = { role: 'ai', text: aiReply, timestamp: Date.now() };
+                    currentMessages.splice(userMsgIndex + 1, 0, aiMessage);
+                    await saveMessagesToFirestore();
+                    renderMessages();
+                } catch (err) {
+                    console.error(err);
+                    const errorMsg = { role: 'ai', text: '❌ Ошибка: ' + err.message, timestamp: Date.now() };
+                    currentMessages.splice(userMsgIndex + 1, 0, errorMsg);
+                    await saveMessagesToFirestore();
+                    renderMessages();
+                } finally {
+                    typingIndicator.classList.add('hidden');
+                }
+            }
+        }
+
+        regenerateBtn.onclick = () => {
+            if (currentMessages.length >= 2) {
+                const lastUserIndex = currentMessages.length - 2;
+                if (currentMessages[lastUserIndex]?.role === 'user') {
+                    regenerateResponse(lastUserIndex);
+                }
+            }
+        };
 
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -197,7 +305,7 @@
             return div.innerHTML;
         }
 
-        // === ОТПРАВКА СООБЩЕНИЯ В OPENROUTER (Llama 3.3 70B) ===
+        // === ОТПРАВКА ===
         async function sendMessage() {
             const text = messageInput.value.trim();
             if (!text || !currentUserId || !currentChatId) return;
@@ -237,7 +345,6 @@
             }
         }
 
-        // Функция вызова OpenRouter API
         async function callOpenRouter(messages) {
             const apiMessages = messages.slice(-20).map(m => ({
                 role: m.role === 'user' ? 'user' : 'assistant',
@@ -290,7 +397,6 @@
                     return chat;
                 });
                 await updateDoc(userRef, { chats: updatedChats });
-                listenHistory();
             }
         }
 
@@ -310,8 +416,21 @@
             background: #f7f9fc;
             height: 100vh;
             overflow: hidden;
-            color: #1e2a3a;
+            transition: background 0.3s, color 0.3s;
         }
+        
+        /* Тёмная тема */
+        body.dark-theme { background: #0f172a; color: #e2e8f0; }
+        body.dark-theme .login-card { background: #1e293b; color: #e2e8f0; }
+        body.dark-theme .sidebar { background: #0f172a; border-right-color: #1e293b; }
+        body.dark-theme .main-chat { background: #0f172a; }
+        body.dark-theme .message-bubble { background: #1e293b; color: #e2e8f0; }
+        body.dark-theme .message.ai .message-bubble { border-color: #334155; }
+        body.dark-theme .input-wrapper { background: #1e293b; border-color: #334155; }
+        body.dark-theme textarea { color: #e2e8f0; }
+        body.dark-theme .history-item:hover { background: #1e293b; }
+        body.dark-theme .history-item.active { background: #334155; }
+        
         .login-card {
             background: white;
             border-radius: 2rem;
@@ -323,7 +442,6 @@
         }
         .login-card i { font-size: 3.5rem; color: #6366f1; margin-bottom: 1rem; }
         .login-card h1 { font-weight: 500; font-size: 2rem; margin-bottom: 0.5rem; }
-        .login-card p { color: #5b6e8c; margin-bottom: 2rem; }
         .google-btn {
             background: white;
             border: 1px solid #e2e8f0;
@@ -335,10 +453,10 @@
             display: inline-flex;
             align-items: center;
             gap: 10px;
-            color: #1e293b;
         }
-        .google-btn:hover { background: #f8fafc; border-color: #cbd5e1; transform: scale(0.98); }
-        .app-layout { display: flex; height: 100vh; background: #ffffff; }
+        .google-btn:hover { background: #f8fafc; transform: scale(0.98); }
+        .app-layout { display: flex; height: 100vh; }
+        
         .sidebar {
             width: 280px;
             background: #fefefe;
@@ -363,8 +481,7 @@
             background-clip: text;
             color: transparent;
         }
-        .logo-area p { font-size: 0.7rem; color: #7c8ba0; }
-        .new-chat-btn {
+        .new-chat-btn, .theme-toggle-btn {
             background: #4f46e5;
             border: none;
             color: white;
@@ -372,18 +489,9 @@
             height: 38px;
             border-radius: 12px;
             cursor: pointer;
-            font-size: 1.2rem;
             transition: 0.2s;
         }
-        .new-chat-btn:hover { background: #6366f1; transform: rotate(90deg); }
-        .history-title {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            font-weight: 600;
-            color: #94a3b8;
-            margin: 0.5rem 0 1rem;
-        }
+        .new-chat-btn:hover, .theme-toggle-btn:hover { background: #6366f1; transform: rotate(90deg); }
         .history-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; }
         .history-item {
             display: flex;
@@ -392,27 +500,35 @@
             padding: 0.7rem 1rem;
             border-radius: 14px;
             cursor: pointer;
-            font-size: 0.9rem;
-            color: #334155;
+            position: relative;
         }
-        .history-item i { width: 20px; color: #818cf8; }
-        .history-item:hover { background: #f1f5f9; }
+        .history-item .delete-chat {
+            margin-left: auto;
+            opacity: 0;
+            transition: 0.2s;
+            color: #ef4444;
+        }
+        .history-item:hover .delete-chat { opacity: 1; }
         .history-item.active { background: #eef2ff; color: #4f46e5; font-weight: 500; }
-        .empty-history { text-align: center; color: #cbd5e1; font-size: 0.8rem; padding: 1rem; }
-        .user-info {
-            margin-top: 2rem;
-            padding-top: 1rem;
-            border-top: 1px solid #edf2f7;
+        
+        .chat-header {
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #f0f2f5;
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 12px;
         }
-        .user-info img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
-        .user-info span { font-size: 0.85rem; font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; }
-        .logout-btn { background: none; border: none; color: #cbd5e1; cursor: pointer; font-size: 1.1rem; }
-        .main-chat { flex: 1; display: flex; flex-direction: column; background: #ffffff; }
-        .chat-header { padding: 1rem 2rem; border-bottom: 1px solid #f0f2f5; }
-        .chat-header h3 { font-weight: 450; font-size: 1rem; color: #2d3a4b; }
+        .chat-actions button {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 10px;
+            color: #94a3b8;
+        }
+        .chat-actions button:hover { background: #f1f5f9; color: #4f46e5; }
+        
         .chat-messages { flex: 1; overflow-y: auto; padding: 2rem; scroll-behavior: smooth; }
         .message { margin-bottom: 1.2rem; display: flex; }
         .message.user { justify-content: flex-end; }
@@ -421,16 +537,33 @@
             padding: 0.8rem 1.2rem;
             border-radius: 1.8rem;
             background: #f1f5f9;
-            color: #1e293b;
-            font-size: 0.95rem;
-            line-height: 1.45;
+            position: relative;
         }
         .message.user .message-bubble { background: #4f46e5; color: white; border-bottom-right-radius: 0.3rem; }
         .message.ai .message-bubble { background: #f8fafc; border: 1px solid #eef2ff; border-bottom-left-radius: 0.3rem; }
-        .message-bubble strong { font-size: 0.75rem; font-weight: 600; opacity: 0.7; display: block; margin-bottom: 4px; }
-        .empty-chat { text-align: center; padding: 3rem; color: #a0afc0; }
-        .empty-chat i { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
-        .input-area { padding: 1rem 2rem 1.8rem; background: white; border-top: 1px solid #f0f2f5; }
+        .message-actions {
+            position: absolute;
+            right: 8px;
+            bottom: -20px;
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: 0.2s;
+        }
+        .message-bubble:hover .message-actions { opacity: 1; }
+        .message-actions i {
+            font-size: 0.7rem;
+            cursor: pointer;
+            color: #94a3b8;
+            background: white;
+            padding: 4px;
+            border-radius: 50%;
+        }
+        .message-actions i:hover { color: #4f46e5; }
+        .message-content { line-height: 1.45; }
+        .message-content p { margin: 4px 0; }
+        
+        .input-area { padding: 1rem 2rem 1.8rem; border-top: 1px solid #f0f2f5; }
         .input-wrapper {
             display: flex;
             gap: 12px;
@@ -438,10 +571,9 @@
             border: 1px solid #e2e8f0;
             border-radius: 3rem;
             padding: 0.4rem 0.4rem 0.4rem 1.5rem;
-            transition: all 0.2s ease;
+            transition: all 0.2s;
         }
         .input-wrapper:hover { border-color: #a5b4fc; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
-        .input-wrapper:focus-within { border-color: #4f46e5; box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.2); }
         textarea {
             flex: 1;
             border: none;
@@ -451,7 +583,6 @@
             padding: 0.7rem 0;
             background: transparent;
             outline: none;
-            max-height: 120px;
         }
         .send-btn {
             background: #4f46e5;
@@ -461,24 +592,20 @@
             height: 42px;
             border-radius: 40px;
             cursor: pointer;
-            font-size: 1rem;
-            transition: 0.15s;
         }
         .send-btn:hover { background: #6366f1; transform: scale(0.96); }
-        .typing-indicator { font-size: 0.75rem; color: #94a3b8; padding: 0.2rem 1.5rem; }
+        .typing-indicator { font-size: 0.75rem; color: #94a3b8; padding: 0.5rem 1.5rem; }
         .hidden { display: none; }
+        
         @media (max-width: 640px) {
             .sidebar { width: 70px; padding: 1rem 0.5rem; }
-            .logo-area p, .history-item span, .user-info span, .history-title { display: none; }
-            .history-item i { margin: 0 auto; }
-            .new-chat-btn { margin: 0 auto; }
-            .user-info img { margin: 0 auto; }
-            .message-bubble { max-width: 85%; }
+            .logo-area p, .history-item span { display: none; }
+            .history-item .delete-chat { opacity: 1; }
         }
     </style>
 </head>
 <body>
-    <div id="loginScreen" style="display: flex; justify-content: center; align-items: center; height: 100vh; background: #f7f9fc;">
+    <div id="loginScreen" style="display: flex; justify-content: center; align-items: center; height: 100vh; background: inherit;">
         <div class="login-card">
             <i class="fas fa-brain"></i>
             <h1>Qesty AI</h1>
@@ -494,22 +621,26 @@
             <div class="sidebar-header">
                 <div class="logo-area">
                     <h2>Qesty AI</h2>
-                    <p>open router</p>
+                    <p>smart chat</p>
                 </div>
                 <button class="new-chat-btn" id="newChatBtn"><i class="fas fa-plus"></i></button>
             </div>
             <div class="history-title">ИСТОРИЯ</div>
             <div class="history-list" id="historyList"></div>
-            <div class="user-info">
-                <img id="userAvatar" src="" alt="avatar">
-                <span id="userName"></span>
-                <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i></button>
+            <div class="user-info" style="margin-top: auto; display: flex; align-items: center; gap: 12px; padding-top: 1rem;">
+                <img id="userAvatar" width="36" height="36" style="border-radius: 50%;">
+                <span id="userName" style="flex:1; font-size:0.85rem;"></span>
+                <button class="theme-toggle-btn" id="themeToggle"><i class="fas fa-moon"></i></button>
+                <button class="logout-btn" id="logoutBtn" style="background:none; border:none; color:#cbd5e1; cursor:pointer;"><i class="fas fa-sign-out-alt"></i></button>
             </div>
         </aside>
 
         <main class="main-chat">
             <div class="chat-header">
                 <h3><i class="far fa-comment-dots"></i> Диалог с Qesty</h3>
+                <div class="chat-actions">
+                    <button id="regenerateBtn"><i class="fas fa-rotate-right"></i></button>
+                </div>
             </div>
             <div class="chat-messages" id="chatArea"></div>
             <div class="input-area">
