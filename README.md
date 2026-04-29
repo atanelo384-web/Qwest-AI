@@ -15,7 +15,7 @@
   </p>
   
   <p>
-    <a href="https://qesty-ai.github.io">
+    <a href="https://atanelo384-web.github.io/Qwest-AI/">
       <img src="https://img.shields.io/badge/🌐_DEMO-открыть_чат-4f46e5?style=for-the-badge">
     </a>
   </p>
@@ -38,7 +38,7 @@
 
 ## 🔗 Ссылка на чат
 
-> ### 🌐 [**Qesty AI — запустить чат**](https://ваш-username.github.io/ваш-репозиторий)
+> ### 🌐 [**https://atanelo384-web.github.io/Qwest-AI/)
 
 *(Замените ссылку на вашу реальную GitHub Pages)*
 
